@@ -1,4 +1,4 @@
-/* OmniFocus Plug-in: Create a Test Folder */
+/* OmniFocus Plug-in: Create Two Test Folders */
 (() => {
     // Function to create or find a folder
     function getOrCreateFolder(folderName) {
@@ -14,7 +14,8 @@
 
     // Define the OmniFocus plug-in action
     var action = new PlugIn.Action(function(selection) {
-        getOrCreateFolder("Test Folder");
+        getOrCreateFolder("Test 1");
+        getOrCreateFolder("Test 2");
     });
 
     // Validation function (always allows running the action)
