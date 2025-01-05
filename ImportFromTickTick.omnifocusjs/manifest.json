@@ -1,0 +1,14 @@
+{
+  "defaultLocale": "en",
+  "identifier": "com.BenBogart.importFromTickTick",
+  "author": "Ben Bogart & ChatGPT 4o",
+  "description": "An OmniFocus plug-in to import tasks from TickTick, via csv export.",
+  "version": "0.0.2",
+  "actions": [
+    {
+      "identifier": "importFromTickTick",
+      "image": "square.and.arrow.down.on.square"
+    }
+  ],
+  "libraries": []
+}
