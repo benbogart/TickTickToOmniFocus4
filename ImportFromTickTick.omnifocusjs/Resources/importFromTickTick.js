@@ -1,4 +1,4 @@
-/* OmniFocus Plug-in: Create a Task and Project */
+/* OmniFocus Plug-in: Create Multiple Tasks */
 (() => {
 
     // Function to ensure a folder exists
@@ -14,6 +14,7 @@
     // Function to ensure a project exists before creating a new one
     function createProject({
         name = "New Project",
+        parentFolder = null,
         note = "",
         dueDate = null,
         deferDate = null,
@@ -21,9 +22,8 @@
         flagged = false,
         tags = [],
         estimatedMinutes = null,
-        type = "parallel", // Can be "parallel" or "sequential"
-        status = "active", // Possible values: active, on-hold, completed, dropped
-        parentFolder = null // Folder name to place the project in
+        type = "parallel",
+        status = "active"
     }) {
         // Ensure the folder exists if specified
         if (parentFolder) {
@@ -95,7 +95,7 @@
         repeating = false,
         isCompleted = false,
         projectName = null,
-        projectParentFolder = null // NEW: Passes folder name for project creation
+        projectParentFolder = null
     }) {
         // Ensure the project exists if specified
         if (projectName) {
@@ -158,23 +158,50 @@
         console.log(`Created task: "${title}" in "${project ? project.name : "Inbox"}"`);
     }
 
+    // Function to create multiple tasks from a list
+    function createMultipleTasks(taskList) {
+        taskList.forEach(taskData => {
+            createTask(taskData);
+        });
+    }
+
     // Define the OmniFocus plug-in action
     var action = new PlugIn.Action(function(selection) {
+        // Sample list of tasks
+        let tasks = [
+            {
+                title: "Task 1",
+                note: "First sample task",
+                dueDate: "2025-01-10T12:00:00Z",
+                flagged: true,
+                estimatedMinutes: 15,
+                projectName: "Project A",
+                projectParentFolder: "Work",
+                tags: ["Urgent"]
+            },
+            {
+                title: "Task 2",
+                note: "Second sample task",
+                dueDate: "2025-01-15T14:00:00Z",
+                estimatedMinutes: 30,
+                projectName: "Project A",
+                projectParentFolder: "Work",
+                tags: ["Low Priority"]
+            },
+            {
+                title: "Task 3",
+                note: "Third sample task",
+                deferDate: "2025-01-20T08:00:00Z",
+                flagged: false,
+                estimatedMinutes: 45,
+                projectName: "Project B",
+                projectParentFolder: "Personal",
+                tags: ["Review"]
+            }
+        ];
 
-        // Create a task inside the project (ensures project exists first)
-        createTask({
-            title: "Test Task",
-            note: "This is a test task created by the plug-in.",
-            dueDate: "2025-01-10T12:00:00Z",
-            deferDate: "2025-01-08T09:00:00Z",
-            flagged: true,
-            estimatedMinutes: 30,
-            repeating: true,
-            isCompleted: true,
-            projectName: "Test Project",
-            projectParentFolder: "Test Folder", // Ensures project is placed inside the correct folder
-            tags: ["High Priority"]
-        });
+        // Run the task iterator
+        createMultipleTasks(tasks);
     });
 
     // Validation function (always allows running the action)
