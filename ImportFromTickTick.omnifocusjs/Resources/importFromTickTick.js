@@ -25,15 +25,16 @@
         status = "active", // Possible values: active, on-hold, completed, dropped
         parentFolder = null // Folder name to place the project in
     }) {
+        // Ensure the folder exists if specified
+        if (parentFolder) {
+            createFolder(parentFolder);
+        }
+
         // Check if the project already exists
         let existingProject = flattenedProjects.find(p => p.name === name);
         if (existingProject) {
             console.log(`Project "${name}" already exists. Skipping creation.`);
             return;
-        }
-
-        if (parentFolder) {
-            createFolder(parentFolder); // Ensure folder exists
         }
 
         // Find folder if specified
@@ -93,8 +94,17 @@
         estimatedMinutes = null,
         repeating = false,
         isCompleted = false,
-        projectName = null
+        projectName = null,
+        projectParentFolder = null // NEW: Passes folder name for project creation
     }) {
+        // Ensure the project exists if specified
+        if (projectName) {
+            createProject({
+                name: projectName,
+                parentFolder: projectParentFolder
+            });
+        }
+
         let project = null;
 
         // Find project if specified
@@ -150,38 +160,8 @@
 
     // Define the OmniFocus plug-in action
     var action = new PlugIn.Action(function(selection) {
-        // Ensure the folder exists
-        createFolder("Test Folder");
 
-        // Create a project inside the folder (or skip if it exists)
-        createProject({
-            name: "Test Project",
-            note: "This is a test project created by the plug-in.",
-            dueDate: "2025-02-01T12:00:00Z",
-            deferDate: "2025-01-15T09:00:00Z",
-            flagged: true,
-            estimatedMinutes: 120,
-            type: "parallel", // Explicitly setting this to parallel
-            status: "active",
-            parentFolder: "Test Folder", // Place project inside this folder
-            tags: ["Priority"]
-        });
-
-        // Create a project inside the folder (or skip if it exists)
-        createProject({
-            name: "Test Project 2",
-            note: "This is a test project created by the plug-in.",
-            dueDate: "2025-02-01T12:00:00Z",
-            deferDate: "2025-01-15T09:00:00Z",
-            flagged: true,
-            estimatedMinutes: 120,
-            type: "parallel", // Explicitly setting this to parallel
-            status: "active",
-            parentFolder: "Test Folder", // Place project inside this folder
-            tags: ["Priority"]
-        });
-
-        // Create a task inside the project
+        // Create a task inside the project (ensures project exists first)
         createTask({
             title: "Test Task",
             note: "This is a test task created by the plug-in.",
@@ -189,9 +169,10 @@
             deferDate: "2025-01-08T09:00:00Z",
             flagged: true,
             estimatedMinutes: 30,
-            repeating: true, // Logs a message instead of failing
-            isCompleted: true, // Task will be marked as completed
+            repeating: true,
+            isCompleted: true,
             projectName: "Test Project",
+            projectParentFolder: "Test Folder", // Ensures project is placed inside the correct folder
             tags: ["High Priority"]
         });
     });
