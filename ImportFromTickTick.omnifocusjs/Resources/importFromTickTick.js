@@ -14,112 +14,135 @@
         "Folder Name": "projectParentFolder"
     };
 
-    let totalRows = 0;   // Counter for total rows in CSV
-    let createdTasks = 0; // Counter for successfully created tasks
+    let totalRows = 0;   
+    let createdTasks = 0; 
+    let skippedTasks = 0; 
 
     function createFolder(folderName) {
         if (!flattenedFolders.find(f => f.name === folderName)) {
             new Folder(folderName);
             console.log(`✅ Created folder: ${folderName}`);
-        } else {
-            console.log(`📁 Folder "${folderName}" already exists.`);
         }
     }
-
+    
     function createProject({ name, parentFolder }) {
         if (parentFolder) createFolder(parentFolder);
-        if (flattenedProjects.find(p => p.name === name)) {
-            console.log(`📌 Project "${name}" already exists.`);
-            return;
+        if (!flattenedProjects.find(p => p.name === name)) {
+            let folder = parentFolder ? flattenedFolders.find(f => f.name === parentFolder) : null;
+            new Project(name, folder);
+            console.log(`✅ Created project: "${name}" in "${folder ? folder.name : "Root"}"`);
         }
-        let folder = parentFolder ? flattenedFolders.find(f => f.name === parentFolder) : null;
-        new Project(name, folder);
-        console.log(`✅ Created project: "${name}" in "${folder ? folder.name : "Root"}"`);
     }
 
     function createTask(taskData) {
-        console.log(`🛠 Creating task: ${JSON.stringify(taskData)}`);
-
+        if (!taskData.title) {
+            skippedTasks++;
+            return;
+        }
+    
+        // **If the project is "Inbox", remove it so the task lands in the Inbox**
+        if (taskData.projectName && taskData.projectName.toLowerCase() === "inbox") {
+            taskData.projectName = null;
+        }
+    
+        // **Ensure the project exists (if specified)**
         if (taskData.projectName) {
             createProject({ name: taskData.projectName, parentFolder: taskData.projectParentFolder });
         }
-
+    
+        // **Find the project after ensuring it exists**
         let project = taskData.projectName ? flattenedProjects.find(p => p.name === taskData.projectName) : null;
-        let task;
-
-        if (project) {
-            task = new Task(taskData.title, project);
-        } else {
-            task = new Task(taskData.title); // **No project assigned → Task goes to Inbox**
-        }
-
+    
+        // **Create the task in the project if specified, otherwise in the Inbox**
+        let task = project ? new Task(taskData.title, project) : new Task(taskData.title);
+    
         task.note = taskData.note || "";
         task.dueDate = taskData.dueDate ? parseDate(taskData.dueDate) : null;
         task.deferDate = taskData.deferDate ? parseDate(taskData.deferDate) : null;
         task.flagged = taskData.flagged || false;
         task.estimatedMinutes = taskData.estimatedMinutes || null;
-
+    
         (taskData.tags || []).forEach(tagName => {
             let tag = flattenedTags.find(t => t.name === tagName);
             if (tag) task.addTag(tag);
         });
-
-        if (taskData.completionDate) {
-            task.markComplete();
-            console.log(`✅ Task "${taskData.title}" was marked as completed on ${taskData.completionDate}`);
+    
+        // ✅ **Fix: Ensure completed tasks are properly marked as complete**
+        if (taskData.isCompleted) {
+            task.markComplete();  // ✅ Call without arguments to use current date
+            console.log(`✅ Task "${taskData.title}" was marked as completed.`);
         }
-
-        createdTasks++; // Increment counter
-        console.log(`✅ Created task: "${taskData.title}" in "${project ? project.name : "Inbox"}"`);
+    
+        createdTasks++;
     }
 
+
     function parseDate(dateString) {
+        if (!dateString) return null;
+    
+        // ✅ Handle ISO 8601 timestamps (e.g., "2025-01-04T18:54:41+0000")
+        let isoDate = Date.parse(dateString);
+        if (!isNaN(isoDate)) {
+            return new Date(isoDate);
+        }
+    
+        // ✅ Handle MM/DD/YY or MM/DD/YYYY formats
         const match = dateString.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
-        if (!match) return null;
-
-        let [_, month, day, year] = match;
-        month = parseInt(month, 10);
-        day = parseInt(day, 10);
-        year = parseInt(year, 10);
-
-        if (year < 50) year += 2000;
-        else if (year < 100) year += 1900;
-
-        return new Date(year, month - 1, day);
+        if (match) {
+            let [_, month, day, year] = match;
+            month = parseInt(month, 10);
+            day = parseInt(day, 10);
+            year = parseInt(year, 10);
+            if (year < 50) year += 2000;
+            else if (year < 100) year += 1900;
+            return new Date(year, month - 1, day);
+        }
+    
+        console.warn(`⚠️ Unrecognized date format: "${dateString}"`);
+        return null; // Return null if no valid date is parsed
     }
 
     function parseCSV(csvText) {
         let lines = csvText.split(/\r?\n/);
         let parsedRows = [];
-        let insideQuotedField = false;
         let currentRow = [];
-
+        let insideQuotes = false;
+        let fieldBuffer = "";
+    
         lines = lines.slice(6); // **Skip first 6 lines (metadata/non-CSV rows)**
-
+    
         for (let line of lines) {
-            line = line.trim();
-
-            if (insideQuotedField) {
-                currentRow[currentRow.length - 1] += "\n" + line;
-                if (line.endsWith('"')) insideQuotedField = false;
-                continue;
-            }
-
-            let parsed = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g)?.map(field => field.replace(/^"|"$/g, '').trim()) || [];
-
-            if (parsed.length > 0) {
-                if (parsed.some(field => field.startsWith('"') && !field.endsWith('"'))) {
-                    insideQuotedField = true;
-                    currentRow = parsed;
+            let chars = [...line];
+            for (let i = 0; i < chars.length; i++) {
+                let char = chars[i];
+    
+                if (char === '"') {
+                    // **If we encounter a quote, toggle insideQuotes mode**
+                    insideQuotes = !insideQuotes;
+                } else if (char === ',' && !insideQuotes) {
+                    // **If we encounter a comma outside of quotes, treat it as a field separator**
+                    currentRow.push(fieldBuffer.trim());
+                    fieldBuffer = "";
                 } else {
-                    parsedRows.push(parsed);
+                    // **Otherwise, add the character to the current field**
+                    fieldBuffer += char;
                 }
             }
+    
+            // **If the line ended and we’re still inside quotes, it's a multiline field**
+            if (insideQuotes) {
+                fieldBuffer += "\n"; // Keep the newline for proper formatting
+            } else {
+                currentRow.push(fieldBuffer.trim()); // Add last field in the row
+                parsedRows.push(currentRow);
+                currentRow = [];
+                fieldBuffer = "";
+            }
         }
-
+    
         return parsedRows;
     }
-
+    
     async function selectAndParseCSVFile() {
         try {
             let filePicker = new FilePicker();
@@ -142,9 +165,7 @@
             }
 
             let rows = parseCSV(fileContents);
-            totalRows = rows.length - 1; // Subtract 1 for header row
-            console.log("📄 CSV Headers:", rows[0]);
-            console.log(`📄 CSV contains ${totalRows} rows of task data.`);
+            totalRows = rows.length - 1;
             parseCSVAndCreateTasks(rows);
 
         } catch (error) {
@@ -158,34 +179,31 @@
         headers.forEach((header, index) => {
             if (mappedColumns[header]) columnIndices[mappedColumns[header]] = index;
         });
-
-        console.log("🔗 Column Mappings:", columnIndices);
-
+    
         let tasks = [];
-
+    
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-
-            if (row.length >= headers.length) {
-                let taskData = {};
-                for (let key in columnIndices) {
-                    let value = row[columnIndices[key]].trim();
-                    if (key === "flagged") taskData[key] = value.toLowerCase() === "high";
-                    else if (key === "tags") taskData[key] = value ? value.split(",").map(tag => tag.trim()) : [];
-                    else if (key === "estimatedMinutes") taskData[key] = parseInt(value) * 25 || null;
-                    else if (key === "completionDate") taskData[key] = parseDate(value);
-                    else taskData[key] = value || null;
+    
+            let taskData = {};
+            for (let key in columnIndices) {
+                let value = row[columnIndices[key]]?.trim() || "";
+                if (key === "flagged") taskData[key] = value.toLowerCase() === "high";
+                else if (key === "tags") taskData[key] = value ? value.split(",").map(tag => tag.trim()) : [];
+                else if (key === "estimatedMinutes") taskData[key] = parseInt(value) * 25 || null;
+                else if (key === "completionDate") {
+                    taskData[key] = parseDate(value);
+                    taskData.isCompleted = taskData[key] !== null; // ✅ Set isCompleted correctly
+                    console.log(`completionData: ${value}, parsed date: ${taskData[key]}, isCompleted: ${taskData.isCompleted}`)
                 }
-                tasks.push(taskData);
-            } else {
-                console.warn(`⚠️ Skipped row ${i + 1} due to missing data:`, row);
+                else taskData[key] = value || null;
             }
+            tasks.push(taskData);
         }
-
-        console.log(`📊 Processed ${tasks.length} tasks (from ${totalRows} rows). Creating now...`);
+    
         tasks.forEach(createTask);
-
-        console.log(`✅ Import completed. Created ${createdTasks} of ${totalRows} expected tasks.`);
+    
+        console.log(`✅ Import completed. Created ${createdTasks} of ${totalRows} expected tasks. Skipped ${skippedTasks} rows due to missing title.`);
     }
 
     var action = new PlugIn.Action(function(selection) {
